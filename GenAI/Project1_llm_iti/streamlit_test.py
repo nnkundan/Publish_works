@@ -124,7 +124,7 @@ if st.button("Clear All"):
     # Add developer credit at the bottom right
 st.markdown(
     """
-    <div style="position: fixed; bottom: 10px; right: 20px; color: #666; font-size: 0.9em">
+    <div style="position: fixed; bottom: 10px; left: 20px; color: #800080; font-size: 0.9em">
         Developed by N N Kundan
     </div>
     """,
