@@ -7,7 +7,7 @@ from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 
-# Set up environment variables for your keys
+# Set up environment variables
 os.environ['GROQ_FACE_API'] = key_groq
 os.environ['langchain_langsmith_API'] = key_langsmith
 os.environ['langchain_tracing_v2'] = 'true'
@@ -22,47 +22,83 @@ class State(TypedDict):
 
 graph_builder = StateGraph(State)
 
-# Define chatbot function
+# Modified chatbot function to handle travel parameters
 def chatbot(state: State):
-    return {"messages": llm.invoke(state['messages'])}
+    # Get user inputs from session state
+    inputs = st.session_state.inputs
+    prompt = f"""
+    Create a travel plan with these parameters:
+    City: {inputs['city']}
+    Days: {inputs['days']}
+    Budget: ${inputs['budget']}
+    Response must be concise and limited to {inputs['word_limit']} words.
+    
+    Include:
+    - Top attractions
+    - Daily itinerary
+    - Budget breakdown
+    - Local tips
+    """
+    
+    response = llm.invoke([("system", prompt)]).content
+    return {"messages": response}
 
 graph_builder.add_node("chatbot", chatbot)
 graph_builder.add_edge(START, "chatbot")
 graph_builder.add_edge("chatbot", END)
-
 graph = graph_builder.compile()
 
-# Streamlit UI for the Chatbot
-st.title("💬 AI Chatbot")
+# Streamlit UI
+st.title("🌍 Travel Planner AI")
 
-# Initialize session state for conversation history
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "inputs" not in st.session_state:
+    st.session_state.inputs = {}
 
-# Display the conversation history
-for role, msg in st.session_state.messages:
-    if role == "user":
-        st.markdown(f"**🧑 User:** {msg}")
-    elif role == "assistant":
-        st.markdown(f"**🤖 Assistant:** {msg}")
-
-# User input area
-user_input = st.text_input("Type your message here...", key="user_input")
-
-# Button to send the message
-if st.button("Send"):
-    if user_input:
-        # Update conversation state with the user's message
-        st.session_state.messages.append(("user", user_input))
+# Input form
+with st.form("travel_inputs"):
+    col1, col2 = st.columns(2)
+    with col1:
+        city = st.text_input("City Name", key="city")
+        days = st.number_input("Number of Days", min_value=1, max_value=30, key="days")
+    with col2:
+        budget = st.number_input("Budget (USD)", min_value=50, key="budget")
+        word_limit = st.number_input("Word Limit", min_value=50, max_value=100, value=100, key="word_limit")
+    
+    submitted = st.form_submit_button("Generate Travel Plan")
+    
+    if submitted:
+        # Store inputs
+        st.session_state.inputs = {
+            "city": city,
+            "days": days,
+            "budget": budget,
+            "word_limit": word_limit
+        }
+        
+        # Clear previous messages
+        st.session_state.messages = []
         
         # Process through the graph
-        for event in graph.stream({'messages': st.session_state.messages}):
+        for event in graph.stream({'messages': []}):  # Start with empty messages
             for value in event.values():
-                # Append the assistant's response to the session state
-                response = value["messages"].content
+                response = value["messages"]
                 st.session_state.messages.append(("assistant", response))
-                st.markdown(f"**🤖 Assistant:** {response}")
 
-# Optional clear button
-if st.button("Clear Chat"):
+# Display output
+st.subheader("Your Travel Plan")
+for role, msg in st.session_state.messages:
+    if role == "assistant":
+        st.markdown(f"""
+        <div style='background-color:#f0f2f6; padding:20px; border-radius:10px; margin:10px 0;'>
+            {msg}
+        </div>
+        """, unsafe_allow_html=True)
+
+# Clear button
+if st.button("Clear All"):
     st.session_state.messages = []
+    st.session_state.inputs = {}
+    st.rerun()
