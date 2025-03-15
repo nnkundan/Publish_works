@@ -16,16 +16,15 @@ os.environ['langchain_project'] = 'courselangraph'
 # Initialize the LLM model
 llm = ChatGroq(groq_api_key=key_groq, model_name="gemma2-9b-it")
 
-# Define StateGraph
+# Define StateGraph with inputs
 class State(TypedDict):
     messages: Annotated[list, add_messages]
+    inputs: dict
 
 graph_builder = StateGraph(State)
 
-# Modified chatbot function to handle travel parameters
 def chatbot(state: State):
-    # Get user inputs from session state
-    inputs = st.session_state.inputs
+    inputs = state["inputs"]
     prompt = f"""
     Create a travel plan with these parameters:
     City: {inputs['city']}
@@ -49,43 +48,58 @@ graph_builder.add_edge("chatbot", END)
 graph = graph_builder.compile()
 
 # Streamlit UI
-st.title("🌍 Travel Planner AI")
+st.title("🌍 Travel Iternary Planner AI")
 
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "inputs" not in st.session_state:
-    st.session_state.inputs = {}
+    st.session_state.inputs = {
+        "city": "",
+        "days": 5,
+        "budget": 500,
+        "word_limit": 300
+    }
 
 # Input form
 with st.form("travel_inputs"):
     col1, col2 = st.columns(2)
     with col1:
-        city = st.text_input("City Name", key="city")
-        days = st.number_input("Number of Days", min_value=1, max_value=30, key="days")
+        city = st.text_input("City Name", value=st.session_state.inputs['city'])
+        days = st.number_input("Number of Days", 
+                             min_value=1, 
+                             max_value=30, 
+                             value=st.session_state.inputs['days'])
     with col2:
-        budget = st.number_input("Budget (USD)", min_value=50, key="budget")
-        word_limit = st.number_input("Word Limit", min_value=50, max_value=100, value=100, key="word_limit")
+        budget = st.number_input("Budget (USD)", 
+                               min_value=50, 
+                               value=st.session_state.inputs['budget'])
+        word_limit = st.number_input("Word Limit", 
+                                   min_value=50, 
+                                   max_value=300, 
+                                   value=st.session_state.inputs['word_limit'])
     
     submitted = st.form_submit_button("Generate Travel Plan")
+
+# Form submission handling
+if submitted:
+    st.session_state.inputs = {
+        "city": city,
+        "days": days,
+        "budget": budget,
+        "word_limit": word_limit
+    }
+    st.session_state.messages = []
     
-    if submitted:
-        # Store inputs
-        st.session_state.inputs = {
-            "city": city,
-            "days": days,
-            "budget": budget,
-            "word_limit": word_limit
-        }
-        
-        # Clear previous messages
-        st.session_state.messages = []
-        
-        # Process through the graph
-        for event in graph.stream({'messages': []}):  # Start with empty messages
-            for value in event.values():
-                response = value["messages"]
-                st.session_state.messages.append(("assistant", response))
+    initial_state = {
+        "messages": [],
+        "inputs": st.session_state.inputs
+    }
+    
+    for event in graph.stream(initial_state):
+        for value in event.values():
+            response = value["messages"]
+            st.session_state.messages.append(("assistant", response))
 
 # Display output
 st.subheader("Your Travel Plan")
@@ -94,11 +108,27 @@ for role, msg in st.session_state.messages:
         st.markdown(f"""
         <div style='background-color:#f0f2f6; padding:20px; border-radius:10px; margin:10px 0;'>
             {msg}
-        </div>
         """, unsafe_allow_html=True)
 
-# Clear button
+# Clear All button with enhanced functionality
 if st.button("Clear All"):
     st.session_state.messages = []
-    st.session_state.inputs = {}
-    st.rerun()
+    st.session_state.inputs = {
+        "city": "",
+        "days": 5,
+        "budget": 500,
+        "word_limit": 300
+    }
+    st.rerun()  # Force refresh to update form fields
+
+    # Add developer credit at the bottom right
+st.markdown(
+    """
+    <div style="position: fixed; bottom: 10px; right: 20px; color: #666; font-size: 0.9em">
+        Developed by N N Kundan
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+# Add some spacing for better UI
+st.markdown("<br>", unsafe_allow_html=True)
