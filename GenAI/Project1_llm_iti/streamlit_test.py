@@ -106,7 +106,7 @@ st.subheader("Your Travel Plan")
 for role, msg in st.session_state.messages:
     if role == "assistant":
         st.markdown(f"""
-        <div style='background-color:#f0f2f6; padding:20px; border-radius:10px; margin:10px 0;'>
+        <div style='background-color:#9e9d24; padding:20px; border-radius:10px; margin:10px 0;'>
             {msg}
         """, unsafe_allow_html=True)
 
